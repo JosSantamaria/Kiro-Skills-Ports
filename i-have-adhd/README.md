@@ -3,34 +3,26 @@
 A skill that stops your coding agent from burying the answer. Action first.
 Steps numbered. No "Hope this helps!".
 
-Kiro port of [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).
-
-## What it does
-
-Shapes every agent response so an ADHD brain can act on it:
-
-- Leads with the next action (command, path, snippet) — not preamble.
-- Numbers multi-step work and ends with one concrete next step.
-- Restates "step 3 of 5" every turn so you don't have to hold it in your head.
-- Gives time estimates in concrete units (minutes, not "a bit").
-- Makes finished work visible; states errors matter-of-factly.
-- Cuts openers, recaps, and closers.
+Kiro port of [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT),
+packaged as a Kiro Power (Agent Plugin format).
 
 ## Install
 
-### Option A — as a Kiro Power
-Powers panel → **Add power from GitHub** → `JosSantamaria/Kiro-Skills-Ports`
-→ select **i-have-adhd**.
+Powers panel → **Add Custom Power** → **Import power from GitHub** →
+paste the repository URL and point it at this power's directory:
 
-### Option B — as a steering file
-Copy `steering/i-have-adhd.md` into your workspace's `.kiro/steering/` folder.
-It uses `inclusion: manual`, so it stays dormant until you invoke it.
+```
+https://github.com/JosSantamaria/Kiro-Skills-Ports/tree/main/i-have-adhd
+```
+
+Or clone the repo and use **Import power from a folder** → select the
+`i-have-adhd/` directory.
 
 ## Use
 
 Turn it on:
 
-> **i-have-adhd**  (or "adhd mode on")
+> **adhd mode**  (or "i-have-adhd")
 
 Turn it off:
 
@@ -38,13 +30,37 @@ Turn it off:
 
 While on, the 10 rules apply to every response.
 
+## The 10 rules (full text in `skills/i-have-adhd/SKILL.md`)
+
+1. Lead with the next action.
+2. Number multi-step tasks.
+3. End with one concrete next step.
+4. Suppress tangents.
+5. Restate state every turn.
+6. Specific time estimates (minutes, not "a bit").
+7. Make wins visible.
+8. Matter-of-fact errors.
+9. Cap visible lists to 5 items.
+10. No preamble, no recap, no closers.
+
+## Structure (Kiro Agent Plugin)
+
+```
+i-have-adhd/                 # power package root
+├── plugin.json             # manifest (name, version, keywords...)
+├── skills/
+│   └── i-have-adhd/
+│       └── SKILL.md         # the 10 rules (canonical behavior, from upstream)
+├── LICENSE                  # MIT (dual copyright)
+└── README.md
+```
+
 ## Faithful to upstream
 
-The 10 rules in `steering/i-have-adhd.md` are copied verbatim from the upstream
-`SKILL.md`, with only two adaptations:
-- The YAML front-matter uses Kiro's steering format (`inclusion: manual`).
-- Rule 5 and exception 6 point at Kiro's task list / system prompt instead of a
-  generic "harness".
+`skills/i-have-adhd/SKILL.md` is copied from the upstream `SKILL.md`, with only:
+- the YAML front-matter trimmed to Kiro's skill fields (`name`, `description`), and
+- rule 5 / exception 6 pointing at Kiro's task list and system prompt instead of
+  a generic "harness".
 
 ## Credits & license
 
