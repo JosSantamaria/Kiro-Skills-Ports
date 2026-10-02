@@ -8,7 +8,7 @@ license: MIT
 
 The reader has ADHD. Output is not just brief. It is shaped so an ADHD brain can act on it.
 
-> Kiro port of [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).
+> Kiro port by Joset Santamaria, from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).
 > Canonical rules kept faithful to upstream; only harness references are Kiro-specific.
 
 ## Persistence
