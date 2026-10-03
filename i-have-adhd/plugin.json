@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "i-have-adhd",
+  "version": "1.0.1",
+  "description": "Shape agent output for a reader with ADHD: lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible, cut all filler.",
+  "author": {
+    "name": "Joset Santamaria",
+    "url": "https://github.com/JosSantamaria"
+  },
+  "keywords": ["adhd", "adhd mode", "output style", "concise", "action-first", "formatting", "productivity"],
+  "homepage": "https://github.com/JosSantamaria/Kiro-Skills-Ports/tree/main/i-have-adhd",
+  "repository": "https://github.com/JosSantamaria/Kiro-Skills-Ports",
+  "license": "MIT"
+}
