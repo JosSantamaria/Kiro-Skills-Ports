@@ -183,6 +183,12 @@ re-run the smoke test. A representative SQLi/XSS payload should now return `403`
 all legitimate traffic must still pass. Keep the rollback ready
 (`MODSEC_RULE_ENGINE=Off` or remove the service and re-expose the app port).
 
+**Validate the real UI, not just HTTP paths.** `curl` won't catch a rule that breaks
+a form post, upload, or XHR that only a browser sends. Drive the app with an AI +
+Playwright flow (an MCP Playwright server or a standalone script) in `DetectionOnly`
+vs `On` and diff the runs: any user action that turns into a `403` under `On` is a
+false positive to exclude. See `references/verification.md` §7.
+
 ## Common gotchas (hard-won)
 
 1. **Tag resolution** — `4-nginx-alpine` may not exist; use a real pinned tag like
@@ -221,5 +227,5 @@ mounting the Docker socket, which would be a privilege-escalation risk). See
 | --- | --- |
 | `references/fastapi-tuning.md` | Always for FastAPI backends — the exclusion set and why |
 | `references/crs-tuning.md` | Writing the before/after plugin files; rule-ID exclusions |
-| `references/verification.md` | Smoke tests, proving the WAF blocks, reading the audit log |
+| `references/verification.md` | Smoke tests, proving the WAF blocks, reading the audit log, **autonomous UI validation with AI + Playwright** |
 | `references/ui-management.md` | Building an admin UI to manage the WAF safely |

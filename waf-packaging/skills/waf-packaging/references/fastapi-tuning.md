@@ -62,8 +62,10 @@ Independent of the WAF, FastAPI apps often leak the stack version to anyone:
 
 - `/openapi.json` and Swagger expose the framework; keep them auth-gated.
 - Custom `/version` or `/health` endpoints that return app/commit/build info should
-  **require authentication** (or at least not echo versions to the public). Return a
-  bare `{"status":"ok"}` from the public health check.
+  **require authentication** (or at least not echo versions to the public). Keep the
+  public health check as minimal as possible — a bare `200` with plain `ok` (not
+  even a JSON structure) is enough for an ALB/Coolify probe and leaks nothing. In
+  FastAPI: `@app.get("/health", response_class=PlainTextResponse)` returning `"ok"`.
 - The reverse proxy should send `Server: nginx` without a version (`server_tokens
   off` — the OWASP image already does this) and must not add `X-Powered-By`.
 - Angular/SPA front-ends: the static `index.html` should not carry a build/version

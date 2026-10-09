@@ -87,3 +87,72 @@ Confirm you can disable the WAF without downtime:
 docker compose run --rm -e MODSEC_RULE_ENGINE=Off ... # or set env and recreate
 # hard: remove the waf service and re-expose the app port in compose
 ```
+
+## 7. Autonomous UI validation with Playwright (AI-driven)
+
+`curl` smoke tests prove the HTTP paths, but they don't prove the **real UI still
+works** through the WAF — a too-aggressive CRS ruleset can break form posts, file
+uploads, websockets or XHR calls that only a browser exercises. Use a browser
+automation agent (Playwright) so an AI can navigate the app autonomously and
+validate behavior end-to-end, before and after flipping to blocking mode.
+
+Why it fits WAF work specifically:
+- The WAF inspects **request bodies and headers** that a browser sends but a simple
+  `curl` may not reproduce (CSRF tokens, multipart uploads, JSON XHR, cookies).
+- Running the same browser flow in `DetectionOnly` vs `On` surfaces exactly which
+  user action a rule would block — turning a vague "something broke" into a concrete
+  path + payload you can write a scoped exclusion for (`crs-tuning.md`).
+- It's repeatable: keep the flow as a script/checklist and re-run it on every CRS
+  change as a regression gate.
+
+### How to use it
+
+If an MCP Playwright server (or a browser-agent power) is available, drive it with a
+checklist like:
+
+1. Open the app through the WAF entrypoint (e.g. `http://localhost:8080`).
+2. Log in (or pass the perimeter basic-auth / app auth), confirm the dashboard loads.
+3. Exercise the risky flows the WAF is most likely to flag:
+   - a search box with special characters,
+   - a create/update form (PUT/PATCH),
+   - a file upload,
+   - any endpoint with a large JSON body.
+4. Capture a screenshot + the network results at each step as evidence.
+5. Diff the run between `DetectionOnly` and `On`: any step that changes from success
+   to a `403`/error under `On` is a false positive to exclude.
+
+Minimal standalone Playwright example (if no MCP server is wired up):
+
+```javascript
+// npx playwright test  — smoke-validate the app behind the WAF
+const { test, expect } = require('@playwright/test');
+const BASE = process.env.BASE || 'http://localhost:8080';
+
+test('app works through the WAF', async ({ page }) => {
+  const blocked = [];
+  page.on('response', r => { if (r.status() === 403) blocked.push(r.url()); });
+
+  await page.goto(BASE);
+  // login flow (adjust selectors to the app)
+  await page.fill('[name=username]', process.env.USER || 'admin');
+  await page.fill('[name=password]', process.env.PASS || 'admin123');
+  await page.click('button[type=submit]');
+  await expect(page).toHaveURL(/dashboard|home|\/$/);
+
+  // exercise a risky flow (search with special chars)
+  await page.goto(`${BASE}/search?q=${encodeURIComponent("o'brien & co *")}`);
+  await page.screenshot({ path: 'waf-search.png', fullPage: true });
+
+  // any 403s captured are WAF blocks to triage (should be none for legit flows)
+  expect(blocked, `WAF blocked legit requests: ${blocked.join(', ')}`).toHaveLength(0);
+});
+```
+
+Treat the list of `403` URLs as the triage queue: for each legitimate one, add a
+path-scoped exclusion, reload, and re-run the Playwright flow until it's clean. Only
+then promote `MODSEC_RULE_ENGINE` to `On` in the real deployment.
+
+> Note on health checks: keep the public `/health` endpoint minimal (a bare `200`
+> with `ok`, no version/build/JSON structure) so it can't be used to fingerprint the
+> stack. Playwright/AI validation covers "does the app actually work"; the health
+> endpoint only needs to answer "is it up".
