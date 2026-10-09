@@ -27,8 +27,11 @@ blind.
 - **TLS placement** — works whether TLS is terminated at an external **ALB** (the
   PaaS/Coolify only routes HTTP — do not assume Coolify terminates TLS) or at the
   PaaS proxy; the backend hop stays plain HTTP (`PROXY_SSL=off`).
-- Verification: smoke tests, a binary "does it actually block" test, audit-log
-  triage, and **autonomous UI validation with AI + Playwright**.
+- Verification: `curl` techniques (token walk, security headers, an audit-log-delta
+  trick that proves the WAF inspected a payload without blocking), a binary "does it
+  actually block" test, audit-log triage, and **optional, volume-gated autonomous UI
+  validation with AI + Playwright** — on Kiro it prefers the `kiro-webwright` power
+  for a reusable validator, with an MCP Playwright server for ad-hoc exploration.
 - Hiding stack version info (FastAPI/Python/Angular/server) from unauthenticated
   users; minimal `/health`.
 - Optional: managing the WAF from an **admin-only UI** safely (config in DB, not

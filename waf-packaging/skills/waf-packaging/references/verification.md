@@ -129,19 +129,54 @@ later.
 
 ### Which tool to use
 
-Two kinds of browser automation typically available — they're complementary:
+Pick based on the IDE/environment, in this order of preference:
 
-- **A browser-agent power (e.g. kiro-webwright)** — *preferred for the regression
-  validator.* It plans, discovers selectors, writes a **reusable `final_script.py`**,
-  and self-verifies with screenshot evidence. Best when you want a repeatable check
-  to re-run on every CRS change and for the `DetectionOnly` vs `On` diff.
-- **An MCP Playwright server** (e.g. the one bundled in some powers) — *preferred for
-  ad-hoc exploration.* Low-level navigate/click/snapshot tools you drive turn by
-  turn; great for discovering selectors or inspecting a single failure, but it
-  doesn't leave a reusable script.
+1. **If the IDE is Kiro: prefer the `kiro-webwright` power** (the Kiro port at
+   `github.com/JosSantamaria/Kiro-Skills-Ports`). It's the strongest fit — a
+   terminal-native web agent that plans, discovers selectors, writes a **reusable
+   `final_script.py`**, and self-verifies with screenshot evidence. Ideal for a
+   regression validator you re-run on every CRS change and for the
+   `DetectionOnly` vs `On` diff. Install it from that repo if not present.
+2. **An MCP Playwright server** (bundled in some powers; may be disabled by default
+   — enable it in that power's `mcp.json`) — good for *ad-hoc exploration*:
+   low-level navigate/click/snapshot driven turn by turn, great for discovering a
+   selector or inspecting one failure, but it doesn't leave a reusable script.
+3. **A standalone Playwright script** (Python or JS, below) when no agent/MCP is
+   wired up — `pip install playwright && playwright install chromium`.
 
-Rule of thumb: large/one-off audit → agent power (keep the script); quick poke →
-MCP Playwright. If only one is available, use it.
+Rule of thumb: on Kiro, use `kiro-webwright` for the keep-it validator and the MCP
+Playwright server for quick pokes; they're complementary. If only one is available,
+use it.
+
+### Complement with `curl` (fast, no browser)
+
+Before (or alongside) a browser run, `curl` covers a lot cheaply and is great for
+scripted gates. Techniques that work well against a WAF:
+
+```bash
+BASE=http://localhost:8080
+# 1. Get a token (same-origin API login) and walk the API with it
+TOKEN=$(curl -s -X POST $BASE/api/auth/login -H 'Content-Type: application/json' \
+         -d '{"username":"admin","password":"admin123"}' | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
+for ep in /api/auth/me /api/accounts/ "/api/search?q=prod-01"; do
+  printf "%-32s %s\n" "$ep" "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$BASE$ep")"
+done
+
+# 2. Confirm security headers survive the WAF hop
+curl -s -D - -o /dev/null $BASE/ | grep -iE 'x-frame|x-content-type|content-security|server'
+
+# 3. Prove the WAF inspects without blocking (DetectionOnly): diff the audit-log
+#    entry count around an attack payload. A delta > 0 means it evaluated & logged.
+before=$(docker compose exec -T waf sh -c 'find /var/log/modsecurity/audit -type f | wc -l')
+curl -s -o /dev/null "$BASE/api/accounts/x?f=1%27%20UNION%20SELECT%20NULL--"
+after=$(docker compose exec -T waf sh -c 'find /var/log/modsecurity/audit -type f | wc -l')
+echo "audit delta: $((after - before))   # >0 ⇒ WAF saw it"
+```
+
+Note a non-403 after an attack in DetectionOnly is expected — the status you see is
+the backend's (e.g. `401`/`405`), not a WAF block; the audit-log delta is what proves
+the WAF engaged. `curl` can't drive JS/forms/uploads, so pair it with the browser
+step for anything the UI does beyond plain requests.
 
 ### How to use it
 

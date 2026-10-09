@@ -234,10 +234,16 @@ recommendation to how much changed:
   **recommend** the AI-driven Playwright validation before prod.
 
 When run, drive the app in `DetectionOnly` vs `On` and diff: any user action that
-turns into a `403` under `On` is a false positive to scope-exclude. Prefer a
-browser-agent power (writes a reusable script) for a regression validator; an MCP
-Playwright server is fine for ad-hoc exploration. See `references/verification.md`
-§7 for the decision heuristic, tool comparison, and a tested script.
+turns into a `403` under `On` is a false positive to scope-exclude.
+
+Tool preference: **if the IDE is Kiro, prefer the `kiro-webwright` power** (the Kiro
+port at `github.com/JosSantamaria/Kiro-Skills-Ports`) — it writes a reusable
+validator script with screenshot evidence. An MCP Playwright server is fine for
+ad-hoc exploration, and a standalone script works if neither is available.
+**Complement with `curl`** for scripted checks (token walk, security-header check,
+and an audit-log-delta trick that proves the WAF inspected a payload without
+blocking). See `references/verification.md` §7 for the heuristic, tool order,
+`curl` techniques, and a tested script.
 
 ## Common gotchas (hard-won)
 
