@@ -1,5 +1,7 @@
 # waf-packaging
 
+> **by [JosSantamaria](https://github.com/JosSantamaria)** · Kiro Power · MIT
+
 Kiro Power (Agent Plugin format) that teaches the agent to **package any web app
 behind a ModSecurity v3 + OWASP CRS WAF** running as a reverse-proxy container in
 front of the app — technology-agnostic, but tuned for **FastAPI** backends.
@@ -86,6 +88,11 @@ waf-packaging/
 ├── LICENSE
 └── README.md
 ```
+
+## Author
+
+Created and maintained by **[Joset Santamaria (JosSantamaria)](https://github.com/JosSantamaria)**.
+Part of the [Kiro-Skills-Ports](https://github.com/JosSantamaria/Kiro-Skills-Ports) collection.
 
 ## License
 
