@@ -62,9 +62,9 @@ upstream licenses when distributing.
 ## Workflow overview
 
 ```
-Phase 0  Recon        → map the app: how it's served, what port, how traffic enters, TLS where
+Phase 0  Recon        → map the app + environment; ingest any API docs the user has
 Phase 1  Insert WAF   → add the WAF container in front (DetectionOnly), app stops publishing its port
-Phase 2  Tune CRS     → app-specific exclusions so legit traffic isn't flagged
+Phase 2  Tune CRS     → app-specific exclusions derived from the routes/docs
 Phase 3  Observe      → read the audit log, triage false positives, adjust
 Phase 4  Block        → switch SecRuleEngine to On, verify legit traffic still passes
 ```
@@ -73,24 +73,65 @@ Phase 4  Block        → switch SecRuleEngine to On, verify legit traffic still
 
 ## Phase 0 — Recon
 
-Record this before changing anything:
+Record this before changing anything.
 
-1. **How is the app served today?** Single container (nginx+app) or app alone?
-   What internal port (e.g. `80`, `8000`, `3000`)?
-2. **How does traffic enter?** Direct host port, a reverse proxy, or a PaaS proxy
-   (Coolify/Traefik)? Where is **TLS terminated** (load balancer / ALB / Caddy)?
-   The WAF should speak plain HTTP to the backend; TLS stays at the edge.
-3. **What legitimate request patterns look like "attacks"?** This is the key input
-   for Phase 2. For FastAPI specifically, note:
-   - Search endpoints that take free-text query params (quotes, `*`, `%`, SQL-ish
-     terms) → will false-positive on the SQLi family (942xxx).
-   - `/docs`, `/redoc`, `/openapi.json` (Swagger) → noisy payloads.
-   - REST verbs: `PUT`/`PATCH`/`DELETE` (CRS 911100 only allows GET/HEAD/POST/OPTIONS by default).
-   - Large request bodies on upload/sync endpoints.
-4. **Existing weak controls?** e.g. npm/nginx **basic auth** in front. The WAF goes
-   *outside or alongside* that: basic auth gates access, the WAF filters payloads.
+### 0a. Ingest the app's documentation (ask the user)
 
-See `references/fastapi-tuning.md` for the FastAPI-specific checklist.
+The fastest, most accurate way to tune the WAF is from the app's own API surface.
+**Ask the user for whatever they have** and use it to drive Phase 2 exclusions and
+the CORS allowlist — don't guess the routes:
+
+- **OpenAPI / Swagger** (`openapi.json`, `/docs`) — the authoritative route list,
+  methods, path params, request bodies, auth scheme. Best possible input.
+- **Postman / Insomnia collection**, API reference, or a README with the endpoints.
+- The route declarations in source if no docs exist. For FastAPI:
+  `grep -rn -E '@(app|router)\.(get|post|put|patch|delete|websocket)\(' --include="*.py"`.
+
+From the docs/routes, extract and write down:
+- Endpoints that take **free-text search** params (SQLi false positives → 942xxx).
+- **Upload / bulk** endpoints (need a higher body limit).
+- Which **HTTP methods** the API really uses (PUT/PATCH/DELETE?).
+- Doc/health/metrics paths to exclude.
+- The **front-end origin(s)** that call the API → feeds the CORS allowlist (0c).
+
+If the user has no docs, say so and fall back to source/route scanning; note the
+gap so exclusions can be revisited.
+
+### 0b. Map serving + where TLS terminates
+
+1. **How is the app served?** Single container (nginx+app) or app alone? Internal
+   port (`80`, `8000`, `3000`)?
+2. **How does traffic enter, and where is TLS terminated?** This decides `PROXY_SSL`:
+   - **TLS at an external load balancer / ALB** (edge terminates TLS, forwards HTTP):
+     WAF speaks plain HTTP to the backend → `PROXY_SSL=off`. The PaaS/Coolify proxy
+     is *not* doing TLS here. **(This is the setup this skill was built against.)**
+   - **TLS at the PaaS proxy** (Coolify/Traefik/Caddy terminates TLS): same for the
+     backend hop (`PROXY_SSL=off`), but point the PaaS route at the `waf` service.
+   - **No TLS yet / local dev**: everything is plain HTTP; `PROXY_SSL=off`.
+   > Do not assume Coolify terminates TLS. In many deployments an external ALB does
+   > it and Coolify just routes HTTP. Confirm with the user which one it is.
+3. **Existing weak controls?** e.g. npm/nginx **basic auth** in front. The WAF goes
+   *alongside* it: basic auth gates *who connects*, the WAF filters *what they send*.
+
+### 0c. Classify the environment (dev / staging / prod / other)
+
+Ask the user which environment this is and record it. It changes several defaults —
+see `references/environments.md`. Summary:
+
+| Setting | dev / local | staging | prod |
+| --- | --- | --- | --- |
+| `MODSEC_RULE_ENGINE` | DetectionOnly | DetectionOnly → On | On (after tuning) |
+| `PARANOIA` | 1 | 1–2 | 1–2 (raise carefully) |
+| `MODSEC_AUDIT_ENGINE` | On (observe) | On | RelevantOnly (volume) |
+| CORS allowlist | localhost ports | staging domain | prod domain only |
+| TLS | none (HTTP) | edge/ALB | edge/ALB |
+
+**Use the same compose with the WAF in dev**, so you test security + navigation the
+same way it'll run in prod — only the env values differ (engine mode, CORS origins,
+paranoia). This catches false positives early, before prod.
+
+See `references/fastapi-tuning.md` (exclusions), `references/environments.md`
+(dev/prod values + CORS), and `references/crs-tuning.md` (how rules load).
 
 ## Phase 1 — Insert the WAF container
 
@@ -225,7 +266,8 @@ mounting the Docker socket, which would be a privilege-escalation risk). See
 
 | File | When to read |
 | --- | --- |
-| `references/fastapi-tuning.md` | Always for FastAPI backends — the exclusion set and why |
+| `references/environments.md` | Classifying dev/staging/prod, per-env values, CORS allowlist, TLS/ALB vs Coolify |
+| `references/fastapi-tuning.md` | Always for FastAPI backends — the exclusion set, deriving it from OpenAPI/routes |
 | `references/crs-tuning.md` | Writing the before/after plugin files; rule-ID exclusions |
 | `references/verification.md` | Smoke tests, proving the WAF blocks, reading the audit log, **autonomous UI validation with AI + Playwright** |
 | `references/ui-management.md` | Building an admin UI to manage the WAF safely |

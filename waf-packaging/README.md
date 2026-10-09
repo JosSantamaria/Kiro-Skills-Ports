@@ -11,15 +11,26 @@ blind.
 
 ## What it covers
 
+- **Driving tuning from the app's own docs** — ingest the user's OpenAPI/Swagger,
+  Postman collection, or API reference (or scan the routes) to derive exclusions and
+  the CORS allowlist, instead of guessing.
+- **Environment awareness** — classify dev / staging / prod and apply per-env values
+  (engine mode, paranoia, audit level, CORS origins, TLS). Run the WAF in dev too, so
+  security + navigation are tested the same way they'll run in prod.
 - Inserting the WAF container in front of an existing app (compose), with the app
   no longer publishing a host port.
 - CRS tuning as `-before` / `-after` plugins, including the **FastAPI exclusion
   set** (REST verbs, Swagger/OpenAPI, free-text search vs the SQLi family, body
   limits, health).
-- Verification: smoke tests, a binary "does it actually block" test, and audit-log
-  triage for false positives.
+- **CORS** done right (env-driven allowlist, not `*`): same-origin front-ends need
+  no CORS; add an origin only for a different-origin SPA or external consumer.
+- **TLS placement** — works whether TLS is terminated at an external **ALB** (the
+  PaaS/Coolify only routes HTTP — do not assume Coolify terminates TLS) or at the
+  PaaS proxy; the backend hop stays plain HTTP (`PROXY_SSL=off`).
+- Verification: smoke tests, a binary "does it actually block" test, audit-log
+  triage, and **autonomous UI validation with AI + Playwright**.
 - Hiding stack version info (FastAPI/Python/Angular/server) from unauthenticated
-  users.
+  users; minimal `/health`.
 - Optional: managing the WAF from an **admin-only UI** safely (config in DB, not
   `.env`; no Docker socket; validate everything written to rule files).
 - Works alongside weak perimeter controls like **nginx/npm basic auth** — the WAF
@@ -62,6 +73,7 @@ waf-packaging/
 │   └── waf-packaging/
 │       ├── SKILL.md            # the skill behavior (phase-driven workflow)
 │       └── references/
+│           ├── environments.md # dev/staging/prod, CORS, TLS/ALB vs Coolify
 │           ├── fastapi-tuning.md
 │           ├── crs-tuning.md
 │           ├── verification.md

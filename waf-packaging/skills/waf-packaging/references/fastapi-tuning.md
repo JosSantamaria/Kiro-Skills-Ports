@@ -42,11 +42,32 @@ SecRule REQUEST_URI "@rx ^/(api/)?(search|.*/search)" \
 ```
 
 Adjust the prefixes to the app's real routes (your API may or may not use an
-`/api` prefix). List the routes first:
+`/api` prefix).
 
-```bash
-grep -rn -E '@(app|router)\.(get|post|put|patch|delete)\(' --include="*.py" .
-```
+## Deriving exclusions from the API docs (preferred)
+
+Ask the user for the API documentation and derive the exclusions from it rather
+than guessing. In order of usefulness:
+
+1. **OpenAPI / Swagger** — the ground truth. If the app exposes `openapi.json`,
+   pull the exact paths, methods and which take free-text params:
+   ```bash
+   # list method + path from an OpenAPI doc
+   curl -s http://APP/openapi.json | \
+     python3 -c 'import sys,json; d=json.load(sys.stdin);
+   [print(m.upper(), p) for p,ms in d["paths"].items() for m in ms]'
+   ```
+   Map that to exclusions: search/query endpoints → drop 942xxx on those paths;
+   upload endpoints → raise body limit; the set of methods seen → `tx.allowed_methods`.
+2. **Postman/Insomnia collection or an API reference** the user provides — same
+   mapping, read the request definitions.
+3. **Source routes** if no docs exist:
+   ```bash
+   grep -rn -E '@(app|router)\.(get|post|put|patch|delete|websocket)\(' --include="*.py" .
+   ```
+
+Write the exclusion regex to match the real prefixes you found. Keep each exclusion
+commented with *which* endpoint and *why*, so it's auditable later.
 
 ## Important: exclusions are not a license to be unsafe
 

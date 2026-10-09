@@ -1,6 +1,14 @@
 # Copy-paste starting point: add a ModSecurity + OWASP CRS WAF in front of an app.
-# Adjust `app` to your real service and internal port. Local traffic is plain HTTP;
-# in production put this behind a load balancer that terminates TLS (PROXY_SSL=off).
+# Adjust `app` to your real service and internal port.
+#
+# TLS: this file assumes TLS is terminated at the EDGE (an external ALB / load
+# balancer), which forwards plain HTTP to the stack — so PROXY_SSL=off and the WAF
+# listens on plain HTTP. Do NOT assume your PaaS (e.g. Coolify) terminates TLS; in
+# many setups an external ALB does and the PaaS only routes HTTP. Confirm which.
+# Local dev is also plain HTTP. See references/environments.md.
+#
+# Env values differ per environment (dev/staging/prod) — keep ONE compose and vary
+# ENVIRONMENT / MODSEC_RULE_ENGINE / CORS_ORIGINS. Run the WAF in dev too.
 #
 # Based on: coreruleset/modsecurity-crs-docker  +  OWASP Core Rule Set.
 
@@ -11,6 +19,12 @@ services:
     # Do NOT publish a host port — only the WAF should be reachable.
     expose:
       - "80"              # <- your app's internal port (80 / 8000 / 3000 / ...)
+    environment:
+      # App-level hardening tied to the environment (see references/environments.md)
+      - ENVIRONMENT=${ENVIRONMENT:-development}   # development | staging | production
+      # CORS allowlist (NOT "*"). Same-origin front-ends don't need it; set the real
+      # origin(s) per env, e.g. prod: https://app.example.com
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080,http://localhost:4200}
     restart: unless-stopped
 
   waf:
