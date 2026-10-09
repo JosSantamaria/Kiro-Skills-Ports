@@ -1,0 +1,53 @@
+# Copy-paste starting point: add a ModSecurity + OWASP CRS WAF in front of an app.
+# Adjust `app` to your real service and internal port. Local traffic is plain HTTP;
+# in production put this behind a load balancer that terminates TLS (PROXY_SSL=off).
+#
+# Based on: coreruleset/modsecurity-crs-docker  +  OWASP Core Rule Set.
+
+services:
+  app:
+    # ---- your existing app service ----
+    build: .
+    # Do NOT publish a host port — only the WAF should be reachable.
+    expose:
+      - "80"              # <- your app's internal port (80 / 8000 / 3000 / ...)
+    restart: unless-stopped
+
+  waf:
+    # Pin a real tag. Verify current tags: hub.docker.com/r/owasp/modsecurity-crs/tags
+    image: owasp/modsecurity-crs:4.25-nginx-alpine-lts
+    ports:
+      - "8080:8080"       # external entrypoint (HTTP). Image runs unprivileged → 8080.
+    environment:
+      - BACKEND=http://app:80        # <- match your app service name + internal port
+      - PROXY_SSL=off                # TLS terminated upstream (LB/ALB)
+      - PORT=8080
+      - SERVER_NAME=localhost
+      - MODSEC_RULE_ENGINE=DetectionOnly   # START HERE. Switch to On only after tuning.
+      - PARANOIA=1
+      - BLOCKING_PARANOIA=1
+      - ANOMALY_INBOUND=5
+      - ANOMALY_OUTBOUND=4
+      - MODSEC_REQ_BODY_LIMIT=52428800     # 50 MB; raise for large uploads
+      - MODSEC_AUDIT_ENGINE=On             # capture everything that fires (tuning phase)
+      - MODSEC_AUDIT_LOG_FORMAT=JSON
+      - MODSEC_AUDIT_LOG_TYPE=Concurrent   # unprivileged user can write the audit/ subdir
+      - MODSEC_AUDIT_STORAGE_DIR=/var/log/modsecurity/audit
+      - REAL_IP_FROM=0.0.0.0/0             # trust the edge proxy for client IP
+      - REAL_IP_HEADER=X-Forwarded-For
+    volumes:
+      # App-specific CRS tuning (see references/fastapi-tuning.md):
+      - ./waf/conf/app-config-before.conf:/etc/modsecurity.d/owasp-crs/plugins/app-config-before.conf:ro
+      - ./waf/conf/app-exclusions.conf:/etc/modsecurity.d/owasp-crs/plugins/app-exclusions-after.conf:ro
+      - waf_logs:/var/log/modsecurity
+    depends_on:
+      - app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  waf_logs:
