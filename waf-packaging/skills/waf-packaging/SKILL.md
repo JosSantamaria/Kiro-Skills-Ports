@@ -224,11 +224,20 @@ re-run the smoke test. A representative SQLi/XSS payload should now return `403`
 all legitimate traffic must still pass. Keep the rollback ready
 (`MODSEC_RULE_ENGINE=Off` or remove the service and re-expose the app port).
 
-**Validate the real UI, not just HTTP paths.** `curl` won't catch a rule that breaks
-a form post, upload, or XHR that only a browser sends. Drive the app with an AI +
-Playwright flow (an MCP Playwright server or a standalone script) in `DetectionOnly`
-vs `On` and diff the runs: any user action that turns into a `403` under `On` is a
-false positive to exclude. See `references/verification.md` §7.
+**Validate the real UI, not just HTTP paths (optional, volume-gated).** `curl` won't
+catch a rule that breaks a form post, upload, or XHR that only a browser sends.
+
+Ask the user whether to run the automated browser validation, scaling the
+recommendation to how much changed:
+- **small change** → offer it, but a quick manual check is usually fine;
+- **large change / many exclusions / paranoia bump / promoting to `On`** →
+  **recommend** the AI-driven Playwright validation before prod.
+
+When run, drive the app in `DetectionOnly` vs `On` and diff: any user action that
+turns into a `403` under `On` is a false positive to scope-exclude. Prefer a
+browser-agent power (writes a reusable script) for a regression validator; an MCP
+Playwright server is fine for ad-hoc exploration. See `references/verification.md`
+§7 for the decision heuristic, tool comparison, and a tested script.
 
 ## Common gotchas (hard-won)
 

@@ -105,10 +105,47 @@ Why it fits WAF work specifically:
 - It's repeatable: keep the flow as a script/checklist and re-run it on every CRS
   change as a regression gate.
 
+### Decision point — ask before automating (volume-based)
+
+This step is **optional**. Offer it, don't impose it. Decide with the user based on
+how much changed:
+
+- **Small change** (one or two scoped exclusions, a single route touched): the
+  `curl` smoke test + a quick manual click-through is usually enough. Ask: *"the
+  change is small — want a quick manual check, or should I run the automated
+  Playwright validation anyway?"*
+- **Large change / high volume** (many exclusions added, paranoia level raised,
+  switching `DetectionOnly → On`, or many routes affected): **recommend the AI-driven
+  Playwright validation**. Ask: *"this touched a lot — I recommend running the
+  automated browser validation so we catch any flow the WAF breaks before prod. Run
+  it?"* A good heuristic to trigger the recommendation:
+  - more than ~3 exclusions changed, OR
+  - any paranoia/anomaly-threshold change, OR
+  - promoting the engine to `On`, OR
+  - the app has forms/uploads/websockets you can't fully cover with `curl`.
+
+Always let the user decline; record that validation was skipped so it can be run
+later.
+
+### Which tool to use
+
+Two kinds of browser automation typically available — they're complementary:
+
+- **A browser-agent power (e.g. kiro-webwright)** — *preferred for the regression
+  validator.* It plans, discovers selectors, writes a **reusable `final_script.py`**,
+  and self-verifies with screenshot evidence. Best when you want a repeatable check
+  to re-run on every CRS change and for the `DetectionOnly` vs `On` diff.
+- **An MCP Playwright server** (e.g. the one bundled in some powers) — *preferred for
+  ad-hoc exploration.* Low-level navigate/click/snapshot tools you drive turn by
+  turn; great for discovering selectors or inspecting a single failure, but it
+  doesn't leave a reusable script.
+
+Rule of thumb: large/one-off audit → agent power (keep the script); quick poke →
+MCP Playwright. If only one is available, use it.
+
 ### How to use it
 
-If an MCP Playwright server (or a browser-agent power) is available, drive it with a
-checklist like:
+Drive the chosen tool with a checklist like:
 
 1. Open the app through the WAF entrypoint (e.g. `http://localhost:8080`).
 2. Log in (or pass the perimeter basic-auth / app auth), confirm the dashboard loads.
@@ -121,7 +158,47 @@ checklist like:
 5. Diff the run between `DetectionOnly` and `On`: any step that changes from success
    to a `403`/error under `On` is a false positive to exclude.
 
-Minimal standalone Playwright example (if no MCP server is wired up):
+Standalone Python Playwright example (tested; good for SPAs — uses `page.request`
+for API probes and captures any 403 the WAF would raise):
+
+```python
+# .venv/bin/python nav_check.py   (pip install playwright && playwright install chromium)
+from playwright.sync_api import sync_playwright
+BASE, USER, PASS = "http://localhost:8080", "admin", "admin123"
+
+blocked = []
+with sync_playwright() as p:
+    b = p.chromium.launch(headless=True)
+    page = b.new_context(viewport={"width": 1280, "height": 1800}).new_page()
+    page.on("response", lambda r: blocked.append((r.status, r.url))
+            if r.status == 403 or r.status >= 500 else None)
+    page.set_default_timeout(15000)
+
+    page.goto(BASE, wait_until="domcontentloaded")
+    page.screenshot(path="01_home.png")
+
+    # same-origin API login → token
+    r = page.request.post(f"{BASE}/api/auth/login",
+                          data={"username": USER, "password": PASS},
+                          headers={"Content-Type": "application/json"})
+    token = (r.json() or {}).get("token", "") if r.ok else ""
+    auth = {"Authorization": f"Bearer {token}"} if token else {}
+
+    # exercise the risky flows (adjust to the app's real routes)
+    for path in ["/api/search?q=web01", "/api/search?q=o'brien & co *",
+                 "/api/dashboard/summary", "/api/accounts/"]:
+        print(path, "->", page.request.get(f"{BASE}{path}", headers=auth).status)
+    b.close()
+
+print("403/5xx captured:", blocked)   # empty in DetectionOnly on legit traffic
+```
+
+After the run, cross-check the WAF audit log (step 5) to see *which rules fired* even
+when nothing was blocked — that's your false-positive triage list for when you flip
+to `On`. Rules firing on `/foo`-style throwaway attack paths are your own probes, not
+app traffic; ignore those.
+
+Minimal standalone Playwright example (JS, if you prefer `@playwright/test`):
 
 ```javascript
 // npx playwright test  — smoke-validate the app behind the WAF

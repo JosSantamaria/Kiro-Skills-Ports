@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "waf-packaging",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Package any web app behind a ModSecurity + OWASP CRS WAF container, manageable and reversible. Technology-agnostic (works with any backend served over HTTP) but tuned for FastAPI backends. Guides adding a reverse-proxy WAF in front of an existing app via docker-compose, starting in DetectionOnly, applying app-specific CRS exclusions, and moving to blocking mode safely.",
   "author": {
     "name": "Joset Santamaria",
