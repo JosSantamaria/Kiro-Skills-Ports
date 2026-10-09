@@ -13,6 +13,7 @@ and `skills/`.
 | Power (`name`) | Based on | What it does | License |
 | --- | --- | --- | --- |
 | [`i-have-adhd`](./i-have-adhd) | [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) | ADHD-friendly agent output: action-first, numbered steps, state restated, no filler. | MIT |
+| [`waf-packaging`](./waf-packaging) | [OWASP CRS](https://github.com/coreruleset/coreruleset) + [modsecurity-crs-docker](https://github.com/coreruleset/modsecurity-crs-docker) | Package any web app behind a ModSecurity + OWASP CRS WAF container (reverse proxy), tuned for FastAPI. Phase-driven: insert in DetectionOnly → tune → block. | MIT |
 
 ## Install a port
 
